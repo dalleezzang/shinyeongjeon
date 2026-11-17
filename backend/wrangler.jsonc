@@ -1,0 +1,10 @@
+{
+ "name":"shinyoung-presence",
+ "main":"worker.js",
+ "account_id":"c84b17d146265012665dddb4e4657955",
+ "compatibility_date":"2026-11-17",
+ "workers_dev":true,
+ "vars":{"ALLOWED_ORIGINS":"https://dalleezzang.github.io,http://localhost:4180"},
+ "durable_objects":{"bindings":[{"name":"GALLERY","class_name":"Gallery"}]},
+ "migrations":[{"tag":"v1","new_sqlite_classes":["Gallery"]}]
+}

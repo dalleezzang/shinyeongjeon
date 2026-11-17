@@ -16,3 +16,19 @@
 #motion-toggle{display:grid;place-items:center;padding:11px!important;width:46px;height:46px}#motion-menu{position:absolute;right:58px;bottom:0;display:grid;grid-template-columns:repeat(2,minmax(86px,1fr));gap:6px;background:#101710eb;border:1px solid #ffffff30;border-radius:14px;padding:10px;backdrop-filter:blur(10px);width:218px}#motion-menu[hidden]{display:none}#motion-menu button{padding:12px 8px!important;white-space:nowrap}#motion-menu button[aria-pressed=true]{background:#eee9db;color:#303b2e}@media(pointer:coarse),(max-width:700px){#motion-menu{bottom:110px;right:0}}
 
 .speech-bubble{position:absolute;transform:translate(-50%,-100%);width:max-content;max-width:220px;padding:10px 14px;background:#fffaf0;color:#283125;border-radius:14px;box-shadow:0 4px 18px #0003;font-size:13px;line-height:1.5;overflow-wrap:anywhere;white-space:pre-wrap;text-align:center}.speech-bubble:after{content:'';position:absolute;bottom:-6px;left:calc(50% - 6px);border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid #fffaf0}.speech-bubble[hidden]{display:none}
+
+/* Keep viewing captions separate from movement and social controls. */
+#visitor-tools{top:max(20px,env(safe-area-inset-top));bottom:auto;flex-direction:row;align-items:center;gap:8px}
+#motion-menu{top:58px;bottom:auto;right:0}
+#chat-panel{top:calc(max(20px,env(safe-area-inset-top)) + 58px);bottom:auto;right:max(20px,env(safe-area-inset-right));max-height:calc(100dvh - 100px);overflow:auto}
+#nearby{top:calc(max(20px,env(safe-area-inset-top)) + 64px);bottom:auto;right:max(20px,env(safe-area-inset-right));left:auto;max-height:calc(100dvh - 112px);overflow:auto}
+@media(pointer:fine) and (min-width:701px){body:has(#chat-panel:not([hidden])) #nearby,body:has(#motion-menu:not([hidden])) #nearby{visibility:hidden}}
+@media(pointer:coarse),(max-width:700px){
+ #visitor-tools{top:max(16px,env(safe-area-inset-top));right:max(16px,env(safe-area-inset-right))}
+ #chat-panel{top:calc(max(16px,env(safe-area-inset-top)) + 58px);right:max(16px,env(safe-area-inset-right))}
+ #motion-menu{top:58px;bottom:auto;right:0}
+ #nearby{top:auto;bottom:max(22px,env(safe-area-inset-bottom));left:auto;right:max(16px,env(safe-area-inset-right));width:min(360px,calc(100vw - max(22px,env(safe-area-inset-left)) - max(16px,env(safe-area-inset-right)) - 128px));max-height:min(240px,34dvh);padding:12px 14px;overflow:auto}
+ #near-title{font-size:16px;line-height:1.4;margin:6px 0}
+ #near-description{font-size:12px;line-height:1.65;max-height:none;margin:6px 0 0}
+ #nearby .caption-kicker{font-size:9px;letter-spacing:1px}
+}

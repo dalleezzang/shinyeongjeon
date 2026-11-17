@@ -432,10 +432,32 @@ $('#entry-form').addEventListener('submit',async e=>{
 });
 
 // Chat is session-only; use text nodes so visitor messages cannot create HTML.
+const mobileChat = matchMedia('(pointer:coarse), (max-width:700px)');
+let chatKeyboardWasOpen=false;
+function positionChat(){
+ const viewport=window.visualViewport;
+ const height=viewport?.height??innerHeight;
+ const bottom=Math.max(0,innerHeight-height-(viewport?.offsetTop??0));
+ document.documentElement.style.setProperty('--chat-bottom',`${bottom}px`);
+ document.documentElement.style.setProperty('--chat-height',`${height}px`);
+ if(!mobileChat.matches||$('#chat-panel').hidden)return;
+ const keyboardOpen=innerHeight-height>120;
+ if(keyboardOpen)chatKeyboardWasOpen=true;
+ else if(chatKeyboardWasOpen){chatKeyboardWasOpen=false;toggleChat(false);}
+}
+window.visualViewport?.addEventListener('resize',positionChat);
+window.visualViewport?.addEventListener('scroll',positionChat);
+addEventListener('resize',positionChat);
+positionChat();
 function toggleChat(open){
  $('#chat-panel').hidden=!open;$('#chat-toggle').setAttribute('aria-expanded',String(open));
  keys.clear();resetStick();
- if(open){$('#chat-toggle').textContent='채팅';$('#chat-input').focus();}else $('#chat-input').blur();
+ document.body.classList.toggle('chat-composing',open);
+ if(open){
+  chatKeyboardWasOpen=false;$('#chat-toggle').textContent='채팅';
+  $('#chat-input').focus({preventScroll:true});positionChat();
+  $('#chat-log').scrollTop=$('#chat-log').scrollHeight;
+ }else{chatKeyboardWasOpen=false;$('#chat-input').blur();}
 }
 function receiveChat(message){
  const avatar=message.senderId===visitorSession?.id?player:remoteVisitors.get(message.senderId)?.avatar;
@@ -451,6 +473,15 @@ $('#chat-toggle').onclick=()=>toggleChat($('#chat-panel').hidden);
 $('#chat-close').onclick=()=>toggleChat(false);
 $('#chat-input').addEventListener('keydown',e=>{e.stopPropagation();if(e.code==='Escape'){e.preventDefault();toggleChat(false);}});
 $('#chat-input').addEventListener('focus',()=>{keys.clear();resetStick();});
+$('#chat-input').addEventListener('blur',()=>{
+ if(mobileChat.matches)setTimeout(()=>{
+  if(document.activeElement!==$('#chat-input'))toggleChat(false);
+ },120);
+});
+// Keep the software keyboard open when tapping Send.
+$('#chat-send').addEventListener('pointerdown',e=>{
+ if(mobileChat.matches)e.preventDefault();
+});
 $('#chat-input').addEventListener('input',()=>$('#chat-send').disabled=!$('#chat-input').value.trim());
 $('#chat-form').addEventListener('submit',async e=>{
  e.preventDefault();const input=$('#chat-input'),text=input.value.trim();if(!text||$('#chat-send').disabled)return;

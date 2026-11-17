@@ -45,7 +45,7 @@ export class Gallery extends DurableObject {
    this.reply(ws,rid,200,{});return;
   }
   if(body.action==='leave'){this.sessions.delete(ws);ws.serializeAttachment(null);this.reply(ws,rid,200,{});ws.close(1000,'Leaving');this.broadcast();return;}
-  if((body.motion!==undefined&&!motions.includes(body.motion))||(body.y!==undefined&&(!Number.isFinite(body.y)||body.y<.12||body.y>2.3))||(body.running!==undefined&&typeof body.running!=='boolean')||body.action!=='update'||![body.x,body.z,body.rotation].every(Number.isFinite)||typeof body.moving!=='boolean'||!((Math.abs(body.x)<=8.04&&body.z>=-6.04&&body.z<=6.15)||(Math.abs(body.x)<=2.67&&body.z>=5.9&&body.z<=10.15))){this.reply(ws,rid,400,{error:'Invalid position'});return;}
+  if((body.motion!==undefined&&!motions.includes(body.motion))||(body.y!==undefined&&(!Number.isFinite(body.y)||body.y<.12||body.y>3.1))||(body.running!==undefined&&typeof body.running!=='boolean')||body.action!=='update'||![body.x,body.z,body.rotation].every(Number.isFinite)||typeof body.moving!=='boolean'||!((Math.abs(body.x)<=8.04&&body.z>=-6.04&&body.z<=6.15)||(Math.abs(body.x)<=2.67&&body.z>=5.9&&body.z<=10.15))){this.reply(ws,rid,400,{error:'Invalid position'});return;}
   const motion=body.moving?'':(body.motion||'');if(motion!==(v.motion||'')){v.motion=motion;v.motionAt=Date.now();}
   Object.assign(v,{x:body.x,z:body.z,rotation:body.rotation,moving:body.moving,y:body.y??.12,running:body.running??false});ws.serializeAttachment(v);this.reply(ws,rid,200,{visitors:this.visitors(ws)});this.broadcast();
  }

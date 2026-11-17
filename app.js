@@ -1,3 +1,4 @@
+import {canMove,verticalStep} from './physics.js';
 import {createCloudPresence} from './presence-client.js';
 const cloudPresence=createCloudPresence("wss://shinyoung-presence.songsari722.workers.dev/visitors",list=>receiveVisitors(list),message=>receiveChat(message));
 import * as THREE from 'three';
@@ -34,7 +35,7 @@ function box(w,h,d,m,x,y,z,parent=scene){const o=new THREE.Mesh(new THREE.BoxGeo
 function cylinder(r1,r2,h,m,x,y,z,parent=scene,segments=8){const o=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,segments),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;parent.add(o);return o;}
 const ground=box(200,.1,200,mat('#d9d6cc'),0,-.25,0);ground.castShadow=false;
 const obstacles=[];
-function solid(w,h,d,m,x,y,z){const mesh=box(w,h,d,m,x,y,z);obstacles.push({x,z,w,d});return mesh;}
+function solid(w,h,d,m,x,y,z){const mesh=box(w,h,d,m,x,y,z);obstacles.push({x,z,w,d,top:y+h/2,climbable:h<2});return mesh;}
 // ---- Room shell -------------------------------------------------------------
 box(17,.28,13,mat('#8a7b66'),0,-.03,0);
 const floor=new THREE.Mesh(new THREE.PlaneGeometry(16.8,12.8),floorMat);floor.rotation.x=-Math.PI/2;floor.position.y=.115;floor.receiveShadow=true;scene.add(floor);
@@ -111,21 +112,21 @@ sign('신영전',0,3.45,10.47,Math.PI,2.8,'#efe6d2',140);
 }
 {const l=new THREE.PointLight('#ffe9c9',8,7,1.6);l.position.set(0,4,8.6);scene.add(l);}
 // ---- Furniture and decor ------------------------------------------------------
-function bench(x,z,rot=0){const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot;scene.add(g);box(2.6,.09,.75,wood,0,.82,0,g);box(2.5,.05,.65,mat('#6a4c33'),0,.765,0,g);for(const sx of [-1,1])box(.08,.62,.62,dark,sx*1.05,.46,0,g);const w=rot?.75:2.6,d=rot?2.6:.75;obstacles.push({x,z,w,d});}
+function bench(x,z,rot=0){const g=new THREE.Group();g.position.set(x,0,z);g.rotation.y=rot;scene.add(g);box(2.6,.09,.75,wood,0,.82,0,g);box(2.5,.05,.65,mat('#6a4c33'),0,.765,0,g);for(const sx of [-1,1])box(.08,.62,.62,dark,sx*1.05,.46,0,g);const w=rot?.75:2.6,d=rot?2.6:.75;obstacles.push({x,z,w,d,top:.865,climbable:true});}
 bench(4.4,1.5);bench(-4.3,-1.6);
 // Rugs anchor the seating areas.
 function rug(x,z,w,d,c1,c2){const t=canvasTex(512,Math.round(512*d/w),(ctx,cw,ch)=>{ctx.fillStyle=c1;ctx.fillRect(0,0,cw,ch);ctx.strokeStyle=c2;ctx.lineWidth=10;ctx.strokeRect(22,22,cw-44,ch-44);ctx.lineWidth=3;ctx.strokeRect(42,42,cw-84,ch-84);for(let i=0;i<9000;i++){ctx.fillStyle=`rgba(0,0,0,${rand()*.05})`;ctx.fillRect(rand()*cw,rand()*ch,2,2);}});const m=new THREE.Mesh(new THREE.BoxGeometry(w,.02,d),new THREE.MeshStandardMaterial({map:t,roughness:1}));m.position.set(x,.13,z);m.receiveShadow=true;scene.add(m);}
 rug(4.4,1.5,4.2,2.6,'#b9a487','#7d5c43');rug(-4.3,-1.6,4,2.4,'#a9ad97','#5b6650');
 // Reception desk: oak top, slatted front, a small lamp and brochures.
-solid(2.3,1.05,.8,mat('#e6e0d3'),-5.5,.72,4.8);box(2.45,.07,.95,wood,-5.5,1.29,4.8);for(let i=0;i<14;i++)box(.09,.98,.03,wood,-6.55+i*.162,.72,4.39);
+solid(2.3,1.05,.8,mat('#e6e0d3'),-5.5,.72,4.8);box(2.45,.07,.95,wood,-5.5,1.29,4.8);obstacles.push({x:-5.5,z:4.8,w:2.45,d:.95,top:1.325,climbable:true});for(let i=0;i<14;i++)box(.09,.98,.03,wood,-6.55+i*.162,.72,4.39);
 cylinder(.09,.12,.04,brass,-6.25,1.35,4.85,scene,16);cylinder(.012,.012,.42,brass,-6.25,1.56,4.85,scene,6);const shade=cylinder(.07,.16,.17,mat('#f3ead8',{emissive:'#ffd9a0',emissiveIntensity:.6}),-6.25,1.8,4.85,scene,16);{const l=new THREE.PointLight('#ffd7a0',1.5,3,2);l.position.set(-6.25,1.7,4.85);scene.add(l);}
 for(let i=0;i<3;i++){const b=box(.21,.02,.3,mat(['#c96f4c','#f2eee3','#4f5d49'][i]),-5.2+i*.27,1.335,4.75);b.rotation.y=(i-1)*.12;}
 // Plants: low-poly leaves around a stem, in ceramic pots.
 function plant(x,z,s=1,pot='#ded2bc'){cylinder(.43*s,.32*s,.65*s,mat(pot,{roughness:.5}),x,.12+.33*s,z,scene,14);cylinder(.05,.07,1.8*s,mat('#786c49'),x,.2+1.4*s,z);for(let i=0;i<9;i++){const a=i*2.4;const leaf=new THREE.Mesh(new THREE.IcosahedronGeometry(.55*s,0),mat(['#5f7149','#7c8f5c','#94a46f'][i%3]));leaf.scale.set(.7,1.35,.5);leaf.position.set(x+Math.cos(a)*.38*s,.2+(1.5+i*.13)*s,z+Math.sin(a)*.4*s);leaf.rotation.z=Math.sin(a)*.7;leaf.rotation.y=a;leaf.castShadow=true;scene.add(leaf);}obstacles.push({x,z,w:1.1*s,d:1.1*s});}
 plant(-7.3,4.0,.9);plant(7.7,-3.4,.85,'#3f4b3c');plant(7.65,5.6,.9,'#c96f4c');
 // Plinths with sculptures.
-solid(.9,.85,.9,white,6.8,.6,-4.6);const sculpture=new THREE.Mesh(new THREE.TorusKnotGeometry(.28,.09,96,12),mat('#8c9a78',{roughness:.35,metalness:.25}));sculpture.position.set(6.8,1.45,-4.6);sculpture.castShadow=true;scene.add(sculpture);
-solid(.7,1.05,.7,white,-7.6,.7,5.4);{const v=new THREE.Mesh(new THREE.LatheGeometry([[0,0],[.16,0],[.2,.12],[.13,.32],[.08,.42],[.1,.48]].map(([a,b])=>new THREE.Vector2(a,b)),24),mat('#c96f4c',{roughness:.45}));v.position.set(-7.6,1.23,5.4);v.scale.setScalar(1.2);v.castShadow=true;scene.add(v);}
+solid(.9,.85,.9,white,6.8,.6,-4.6);const sculpture=new THREE.Mesh(new THREE.TorusKnotGeometry(.28,.09,96,12),mat('#8c9a78',{roughness:.35,metalness:.25}));sculpture.position.set(6.8,1.45,-4.6);sculpture.castShadow=true;scene.add(sculpture);obstacles.push({x:6.8,z:-4.6,w:.65,d:.65,top:1.82,climbable:true});
+solid(.7,1.05,.7,white,-7.6,.7,5.4);{const v=new THREE.Mesh(new THREE.LatheGeometry([[0,0],[.16,0],[.2,.12],[.13,.32],[.08,.42],[.1,.48]].map(([a,b])=>new THREE.Vector2(a,b)),24),mat('#c96f4c',{roughness:.45}));v.position.set(-7.6,1.23,5.4);v.scale.setScalar(1.2);v.castShadow=true;scene.add(v);obstacles.push({x:-7.6,z:5.4,w:.4,d:.4,top:1.806,climbable:true});}
 
 // Soft, simple silhouettes with a face and articulated shoulders.
 function person(x,z,shirt,rotation=0){
@@ -174,7 +175,7 @@ function animatePerson(person,now,moving,running=false,motion='',motionAt=0){
  }else if(motion==='lie'){
   pos.set(0,.24,-.75);rot.x=-Math.PI/2;legRot[0].z=-.1;legRot[1].z=.1;armRot[0].z=-.3;armRot[1].z=.3;
  }else if(motion==='headspin'){
-  pos.y=1.78;rot.set(0,t*5,Math.PI);legRot[0].z=-.5;legRot[1].z=.5;armRot[0].z=-1.1;armRot[1].z=1.1;
+  pos.y=1.78;rot.set(0,t*11,Math.PI);legRot[0].z=-.5;legRot[1].z=.5;armRot[0].z=-1.1;armRot[1].z=1.1;
   legRot[0].x=Math.sin(t*4)*.2;legRot[1].x=-legRot[0].x;
  }else if(motion==='bboy'){
   pos.y=.48;rot.set(1.28,t*4,.2*Math.sin(t*4));
@@ -263,7 +264,7 @@ joystick.addEventListener('pointermove',e=>{if(e.pointerId===stick.pointer){e.pr
 for(const event of ['pointerup','pointercancel','lostpointercapture'])joystick.addEventListener(event,e=>{if(e.pointerId===stick.pointer)resetStick();});
 addEventListener('blur',resetStick);document.addEventListener('visibilitychange',()=>{if(document.hidden)resetStick();});
 joystick.addEventListener('contextmenu',e=>e.preventDefault());
-function canStand(x,z){const radius=.33;const main=x>=-8.04&&x<=8.04&&z>=-6.04&&z<=6.15;const entry=x>=-2.67&&x<=2.67&&z>=5.9&&z<=10.15;if(!main&&!entry)return false;return !obstacles.some(o=>Math.abs(x-o.x)<o.w/2+radius&&Math.abs(z-o.z)<o.d/2+radius);}
+function canStand(x,z){return canMove(x,z,player.position.y,obstacles);}
 controls.enabled=false;camera.fov=55;camera.near=.08;camera.updateProjectionMatrix();
 const cameraRay=new THREE.Raycaster();
 const wrapAngle=a=>Math.atan2(Math.sin(a),Math.cos(a));
@@ -331,7 +332,7 @@ if((horizontal||forward)&&!document.querySelector('dialog[open]')){const norm=Ma
 if(canStand(player.position.x+dx*step,player.position.z))player.position.x+=dx*step;
 if(canStand(player.position.x,player.position.z+dz*step))player.position.z+=dz*step;
 moving=Math.hypot(oldX-player.position.x,oldZ-player.position.z)>.0001;const heading=Math.atan2(dx,dz);player.rotation.y+=wrapAngle(heading-player.rotation.y)*(1-Math.exp(-dt*14));}
-if(jumpVelocity||player.position.y>.12){jumpVelocity-=12*dt;player.position.y=Math.max(.12,player.position.y+jumpVelocity*dt);if(player.position.y===.12){jumpVelocity=0;jumpsUsed=0;}}
+const vertical=verticalStep({x:player.position.x,z:player.position.z,y:player.position.y,velocity:jumpVelocity,jumps:jumpsUsed},dt,obstacles);player.position.y=vertical.y;jumpVelocity=vertical.velocity;jumpsUsed=vertical.jumps;
 playerMoving=moving;if(moving||horizontal||forward)lastMovement=now;animatePerson(player,now,moving,playerRunning,playerMotion,playerMotionAt);animatePerson(clerk,now,false);updateRemoteVisitors(dt,now);updateCamera(dt);updateNearby(now);updateGreeting();updateEntryGuide(now);updateNameLabels();renderer.render(scene,camera);
 }requestAnimationFrame(animate);
 

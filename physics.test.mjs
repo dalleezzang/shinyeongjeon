@@ -1,0 +1,8 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {canMove,verticalStep,supportHeight,CEILING_Y} from './physics.js';
+const bench={x:0,z:0,w:2.6,d:.75,top:.865,climbable:true},counter={x:4,z:0,w:2.45,d:.95,top:1.325,climbable:true},wall={x:0,z:4,w:5,d:.2,top:4.8,climbable:false};
+const objects=[bench,counter,wall];
+test('solid furniture sides; clear tops; walls stay solid in air',()=>{assert(!canMove(0,0,.12,objects));assert(canMove(0,0,.9,objects));assert(!canMove(4,0,.9,objects));assert(canMove(4,0,1.4,objects));assert(!canMove(0,4,3,objects));});
+function fall(x,y){let s={x,z:0,y,velocity:0,jumps:2};for(let i=0;i<300;i++){s={...s,...verticalStep(s,1/60,objects)};if(s.grounded)return s;}throw Error('never landed');}
+test('lands on benches and counter without sinking; restores jumps',()=>{for(const [x,top] of [[0,.87],[4,1.33]]){const s=fall(x,2);assert(Math.abs(s.y-top)<1e-9);assert.equal(s.jumps,0);assert(s.grounded);}});
+test('walking off an edge falls to floor; underside never teleports onto top',()=>{assert.equal(fall(7,1.33).y,.12);assert.equal(supportHeight(4,0,.8,objects),.12);const s=verticalStep({x:7,z:0,y:1.33,velocity:0,jumps:0},.05,objects);assert(s.y<1.33);assert.equal(s.jumps,1);});
+test('double jump reaches counter and ceiling caps stacked jumps',()=>{let s={x:7,z:0,y:.12,velocity:4.8,jumps:1},peak=0;for(let i=0;i<100;i++){if(i===23){s.velocity=4.8;s.jumps=2;}s={...s,...verticalStep(s,1/60,objects)};peak=Math.max(peak,s.y);}assert(peak>1.33);const s2=verticalStep({x:4,z:0,y:3,velocity:4.8,jumps:2},.05,objects);assert.equal(s2.y,CEILING_Y);assert.equal(s2.velocity,0);});

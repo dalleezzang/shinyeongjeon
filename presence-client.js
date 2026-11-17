@@ -23,7 +23,7 @@ export function createCloudPresence(endpoint,onVisitors,onChat=()=>{}){
   const body=JSON.parse(options.body);
   if(body.action!=='join'&&socket?.readyState!==WebSocket.OPEN)return response(401,{});
   if(body.action==='join'){await connect();lastState='';}
-  const state=JSON.stringify([body.x,body.z,body.rotation,body.moving,body.y,body.running]);
+  const state=JSON.stringify([body.x,body.z,body.rotation,body.moving,body.y,body.running,body.motion]);
   if(body.action==='update'&&state===lastState)return response(200,{visitors});
   const rid=++sequence;
   const result=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(rid);close();reject(Error('연결이 지연되고 있어요.'));},4500);pending.set(rid,{resolve,reject,timer});socket.send(JSON.stringify({...body,rid}));});

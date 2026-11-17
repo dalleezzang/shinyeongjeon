@@ -1,4 +1,5 @@
 import {DurableObject} from 'cloudflare:workers';
+const motions=['','bboy','headspin','lie','dance'];
 const colors=['#7d927e','#798ca5','#b89366','#9a83a1','#b5796c','#729c99'];
 export default {fetch(request,env){
  const url=new URL(request.url);
@@ -17,7 +18,7 @@ export class Gallery extends DurableObject {
   this.ctx.acceptWebSocket(socket);socket.serializeAttachment(null);this.sessions.set(socket,null);
   return new Response(null,{status:101,webSocket:client});
  }
- visitors(socket){return [...this.sessions].filter(([ws,v])=>ws!==socket&&v).map(([,v])=>{const {id,name,color,x,z,rotation,moving,y=.12,running=false}=v;return {id,name,color,x,z,rotation,moving,y,running};});}
+ visitors(socket){return [...this.sessions].filter(([ws,v])=>ws!==socket&&v).map(([,v])=>{const {id,name,color,x,z,rotation,moving,y=.12,running=false,motion='',motionAt=0}=v;return {id,name,color,x,z,rotation,moving,y,running,motion,motionAt};});}
  reply(ws,rid,status,data){ws.send(JSON.stringify({rid,status,data}));}
  broadcast(){for(const [ws,v] of this.sessions)if(v){try{ws.send(JSON.stringify({visitors:this.visitors(ws)}));}catch{this.sessions.delete(ws);}}}
  webSocketMessage(ws,raw){
@@ -39,12 +40,13 @@ export class Gallery extends DurableObject {
    if(!text||Array.from(text).length>200||/[\u0000-\u001f\u007f]/.test(text)){this.reply(ws,rid,400,{error:'메시지는 1~200자로 입력해주세요.'});return;}
    if(Date.now()-(v.lastChat||0)<1000){this.reply(ws,rid,429,{error:'잠시 후 다시 보내주세요.'});return;}
    v.lastChat=Date.now();ws.serializeAttachment(v);
-   const chat={id:crypto.randomUUID(),name:v.name,text};
+   const chat={id:crypto.randomUUID(),senderId:v.id,name:v.name,text};
    for(const [peer,user] of this.sessions)if(user){try{peer.send(JSON.stringify({chat}));}catch{}}
    this.reply(ws,rid,200,{});return;
   }
   if(body.action==='leave'){this.sessions.delete(ws);ws.serializeAttachment(null);this.reply(ws,rid,200,{});ws.close(1000,'Leaving');this.broadcast();return;}
-  if((body.y!==undefined&&(!Number.isFinite(body.y)||body.y<.12||body.y>1.5))||(body.running!==undefined&&typeof body.running!=='boolean')||body.action!=='update'||![body.x,body.z,body.rotation].every(Number.isFinite)||typeof body.moving!=='boolean'||!((Math.abs(body.x)<=8.04&&body.z>=-6.04&&body.z<=6.15)||(Math.abs(body.x)<=2.67&&body.z>=5.9&&body.z<=10.15))){this.reply(ws,rid,400,{error:'Invalid position'});return;}
+  if((body.motion!==undefined&&!motions.includes(body.motion))||(body.y!==undefined&&(!Number.isFinite(body.y)||body.y<.12||body.y>2.3))||(body.running!==undefined&&typeof body.running!=='boolean')||body.action!=='update'||![body.x,body.z,body.rotation].every(Number.isFinite)||typeof body.moving!=='boolean'||!((Math.abs(body.x)<=8.04&&body.z>=-6.04&&body.z<=6.15)||(Math.abs(body.x)<=2.67&&body.z>=5.9&&body.z<=10.15))){this.reply(ws,rid,400,{error:'Invalid position'});return;}
+  const motion=body.moving?'':(body.motion||'');if(motion!==(v.motion||'')){v.motion=motion;v.motionAt=Date.now();}
   Object.assign(v,{x:body.x,z:body.z,rotation:body.rotation,moving:body.moving,y:body.y??.12,running:body.running??false});ws.serializeAttachment(v);this.reply(ws,rid,200,{visitors:this.visitors(ws)});this.broadcast();
  }
  webSocketClose(ws){this.sessions.delete(ws);this.broadcast();}

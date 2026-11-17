@@ -11,4 +11,6 @@
 <div id="greeting" role="status" aria-hidden="true">좋은관람되십시오</div>
 <aside id="nearby" aria-hidden="true"><span class="caption-kicker">신영전</span><h2 id="near-title"></h2><p id="near-description"></p></aside>
 <div id="name-labels" aria-label="접속 관람객"></div>
+<div id="visitor-tools"><button id="chat-toggle" aria-expanded="false" aria-controls="chat-panel">채팅</button><div id="motion-buttons"><button id="run-button" aria-pressed="false" title="달리기 전환">달리기</button><button id="jump-button">점프</button></div></div>
+<section id="chat-panel" hidden aria-label="관람객 채팅"><header><span>관람객 채팅</span><button id="chat-close" aria-label="채팅 닫기">×</button></header><div id="chat-log" role="log" aria-live="polite"></div><form id="chat-form"><input id="chat-input" aria-label="채팅 메시지" placeholder="메시지 입력" maxlength="200" autocomplete="off"><button id="chat-send" disabled>보내기</button></form><p id="chat-error" role="status"></p></section>
 <script type="module" src="./app.js"></script></body></html>

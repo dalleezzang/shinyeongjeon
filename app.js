@@ -1,5 +1,5 @@
 import {createCloudPresence} from './presence-client.js';
-const cloudPresence=createCloudPresence("wss://shinyoung-presence.songsari722.workers.dev/visitors",list=>receiveVisitors(list));
+const cloudPresence=createCloudPresence("wss://shinyoung-presence.songsari722.workers.dev/visitors",list=>receiveVisitors(list),message=>receiveChat(message));
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const $=s=>document.querySelector(s), scene=new THREE.Scene();
@@ -155,7 +155,8 @@ function person(x,z,shirt,rotation=0){
  sphere(.06,hairMat,[-.135,.145,.105],[1.3,.8,.8],head);
  g.userData={legs,arms,head,cloth};return g;
 }
-function animatePerson(person,now,moving){
+function animatePerson(person,now,moving,running=false){
+ if(running)now*=1.55;
  const swing=moving?Math.sin(now*.0105)*.4:0;
  person.userData.legs.forEach((leg,i)=>leg.rotation.x=i?-swing:swing);
  person.userData.arms.forEach((arm,i)=>arm.rotation.x=i?swing*.7:-swing*.7);
@@ -166,7 +167,8 @@ const clerk=person(-5.5,5.65,'#6d7c67',Math.PI);
 obstacles.push({x:-5.5,z:5.65,w:.5,d:.5});
 let focusArt=null,focusBlend=0,lastManualLook=0,lastMovement=0,focusEligible=false;
 let focusSuppressedUntil=0;
-let playerMoving=false;
+let playerMoving=false,playerRunning=false,touchRunning=false,jumpVelocity=0;
+function jump(){if(!admitted||initialLoading||player.position.y>.121)return;releaseArtworkView();jumpVelocity=4.8;}
 const artGroup=new THREE.Group();scene.add(artGroup);let works=[],signature='',targets=[];
 const sampleNames=['A softer morning','The shape of quiet','Somewhere, slowly','After the rain','Soft edges','A little blue','Still growing','Between moments'];
 function sample(i){const c=document.createElement('canvas');c.width=600;c.height=760;const ctx=c.getContext('2d');const colors=[['#eee5ce','#a8ae89','#d6815d'],['#e9e0d2','#444f62','#b9bec4'],['#e9bc8c','#c96647','#f4ddaa'],['#d1dddc','#67908b','#f0dfb8'],['#e3ddc6','#6c7c54','#b3b88d'],['#e3e4dc','#6a83a1','#b6c6ca'],['#e4dec8','#868e5a','#b49a77'],['#eed6c2','#c29481','#6f7e72']][i];ctx.fillStyle=colors[0];ctx.fillRect(0,0,600,760);ctx.fillStyle=colors[1];if(i%3===0){ctx.beginPath();ctx.arc(300,330,190,Math.PI,0);ctx.lineTo(490,650);ctx.lineTo(110,650);ctx.fill();ctx.fillStyle=colors[2];ctx.beginPath();ctx.arc(380,230,85,0,Math.PI*2);ctx.fill();}else if(i%3===1){for(let j=0;j<6;j++){ctx.fillStyle=j%2?colors[1]:colors[2];ctx.beginPath();ctx.ellipse(310,150+j*90,190-j*15,65,-.3,0,Math.PI*2);ctx.fill();}}else{ctx.fillRect(100,100,310,460);ctx.fillStyle=colors[2];ctx.beginPath();ctx.arc(370,490,165,0,Math.PI*2);ctx.fill();}return {name:sampleNames[i],url:c.toDataURL(),sample:true};}
@@ -214,7 +216,14 @@ const movementCodes=new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','
 function releaseArtworkView(){
  const now=performance.now();focusSuppressedUntil=now+120;lastMovement=now;focusEligible=false;clickedArt=null;
 }
-addEventListener('keydown',e=>{if(!initialLoading&&admitted&&movementCodes.has(e.code)){e.preventDefault();releaseArtworkView();keys.add(e.code);}});
+addEventListener('keydown',e=>{
+ if(e.target.closest?.('input,textarea,[contenteditable="true"]'))return;
+ if(initialLoading||!admitted)return;
+ if(e.code==='Enter'){e.preventDefault();toggleChat(true);return;}
+ if(e.code==='Space'){e.preventDefault();if(!e.repeat)jump();return;}
+ if(e.code==='ShiftLeft'||e.code==='ShiftRight'){keys.add(e.code);return;}
+ if(movementCodes.has(e.code)){e.preventDefault();releaseArtworkView();keys.add(e.code);}
+});
 addEventListener('keyup',e=>keys.delete(e.code));addEventListener('blur',()=>{keys.clear();dragging=false;lookPointer=null;});
 renderer.domElement.addEventListener('pointerdown',e=>{if(initialLoading||lookPointer!==null)return;dragging=true;lookPointer=e.pointerId;lookX=e.clientX;lookY=e.clientY;renderer.domElement.setPointerCapture(e.pointerId);});
 renderer.domElement.addEventListener('pointermove',e=>{if(dragging&&e.pointerId===lookPointer&&!document.querySelector('dialog[open]')){clickedArt=null;lastManualLook=performance.now();yaw-=(e.clientX-lookX)*.004;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-lookY)*.003,-.45,.5);lookX=e.clientX;lookY=e.clientY;}});
@@ -258,7 +267,7 @@ function updateCamera(dt,snap=false){
  const candidate=clickedArt||pickApproach(now,eye,new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),walls);
  let want=0;
  const movingInput=keys.size>0||Math.hypot(stick.x,stick.y)>.01;
- if(!initialLoading&&admitted&&candidate&&!dragging&&!movingInput&&!playerMoving&&now>focusSuppressedUntil&&(clickedArt||now-lastManualLook>300)){
+ if(!initialLoading&&admitted&&candidate&&!dragging&&!movingInput&&!playerMoving&&player.position.y<=.121&&now>focusSuppressedUntil&&(clickedArt||now-lastManualLook>300)){
   // Finish easing out before changing works, avoiding a sideways jump between photographs.
   if(!approachArt||approachArt===candidate||focusBlend<.02){approachArt=candidate;want=1;}
  }
@@ -304,12 +313,14 @@ let previous=performance.now();updateCamera(0,true);
 function animate(now){requestAnimationFrame(animate);const dt=Math.min((now-previous)/1000,.05);previous=now;
 const horizontal=(keys.has('KeyD')?1:0)-(keys.has('KeyA')?1:0)+stick.x;const turn=(keys.has('ArrowLeft')?1:0)-(keys.has('ArrowRight')?1:0);if(turn&&!document.querySelector('dialog[open]')){yaw+=turn*1.9*dt;lastManualLook=now;}
 const forward=(keys.has('KeyW')||keys.has('ArrowUp')?1:0)-(keys.has('KeyS')||keys.has('ArrowDown')?1:0)-stick.y;
+playerRunning=touchRunning||keys.has('ShiftLeft')||keys.has('ShiftRight');
 let moving=false;
-if((horizontal||forward)&&!document.querySelector('dialog[open]')){const norm=Math.hypot(horizontal,forward);const dx=(Math.cos(yaw)*horizontal-Math.sin(yaw)*forward)/norm;const dz=(-Math.sin(yaw)*horizontal-Math.cos(yaw)*forward)/norm;const step=2.6*dt*Math.min(1,norm);const oldX=player.position.x,oldZ=player.position.z;
+if((horizontal||forward)&&!document.querySelector('dialog[open]')){const norm=Math.hypot(horizontal,forward);const dx=(Math.cos(yaw)*horizontal-Math.sin(yaw)*forward)/norm;const dz=(-Math.sin(yaw)*horizontal-Math.cos(yaw)*forward)/norm;const step=(playerRunning?4.7:2.6)*dt*Math.min(1,norm);const oldX=player.position.x,oldZ=player.position.z;
 if(canStand(player.position.x+dx*step,player.position.z))player.position.x+=dx*step;
 if(canStand(player.position.x,player.position.z+dz*step))player.position.z+=dz*step;
 moving=Math.hypot(oldX-player.position.x,oldZ-player.position.z)>.0001;const heading=Math.atan2(dx,dz);player.rotation.y+=wrapAngle(heading-player.rotation.y)*(1-Math.exp(-dt*14));}
-playerMoving=moving;if(moving||horizontal||forward)lastMovement=now;animatePerson(player,now,moving);animatePerson(clerk,now,false);updateRemoteVisitors(dt,now);updateCamera(dt);updateNearby(now);updateGreeting();updateEntryGuide(now);updateNameLabels();renderer.render(scene,camera);
+if(jumpVelocity||player.position.y>.12){jumpVelocity-=12*dt;player.position.y=Math.max(.12,player.position.y+jumpVelocity*dt);if(player.position.y===.12)jumpVelocity=0;}
+playerMoving=moving;if(moving||horizontal||forward)lastMovement=now;animatePerson(player,now,moving,playerRunning);animatePerson(clerk,now,false);updateRemoteVisitors(dt,now);updateCamera(dt);updateNearby(now);updateGreeting();updateEntryGuide(now);updateNameLabels();renderer.render(scene,camera);
 }requestAnimationFrame(animate);
 
 let nearbyKey=null,lastNearbyCheck=0;
@@ -343,11 +354,11 @@ function updateGreeting(){
 // Ephemeral, server-backed visitor positions. Each browser tab is one visitor.
 const remoteVisitors=new Map();let visitorSession=null,presenceTimer=null,presenceStopped=false,hasJoined=false;
 function removeVisitor(id){const remote=remoteVisitors.get(id);if(!remote)return;scene.remove(remote.avatar);remote.avatar.userData.nameLabel?.remove();const materials=new Set();remote.avatar.traverse(o=>{o.geometry?.dispose();if(o.material&&o.material!==white)materials.add(o.material);});materials.forEach(m=>m.dispose());remoteVisitors.delete(id);}
-function receiveVisitors(list){const ids=new Set();for(const v of list){ids.add(v.id);let remote=remoteVisitors.get(v.id);if(!remote){const avatar=person(v.x,v.z,v.color,v.rotation);addNameLabel(avatar,v.name||'관람객');remote={avatar,x:v.x,z:v.z,rotation:v.rotation,moving:v.moving};remoteVisitors.set(v.id,remote);}Object.assign(remote,{x:v.x,z:v.z,rotation:v.rotation,moving:v.moving});}for(const id of remoteVisitors.keys())if(!ids.has(id))removeVisitor(id);$('#scene').dataset.visitors=String(remoteVisitors.size);}
-function updateRemoteVisitors(dt,now){for(const remote of remoteVisitors.values()){const t=1-Math.exp(-12*dt);remote.avatar.position.x=THREE.MathUtils.lerp(remote.avatar.position.x,remote.x,t);remote.avatar.position.z=THREE.MathUtils.lerp(remote.avatar.position.z,remote.z,t);const delta=Math.atan2(Math.sin(remote.rotation-remote.avatar.rotation.y),Math.cos(remote.rotation-remote.avatar.rotation.y));remote.avatar.rotation.y+=delta*t;animatePerson(remote.avatar,now,remote.moving);}}
+function receiveVisitors(list){const ids=new Set();for(const v of list){ids.add(v.id);let remote=remoteVisitors.get(v.id);if(!remote){const avatar=person(v.x,v.z,v.color,v.rotation);addNameLabel(avatar,v.name||'관람객');remote={avatar,x:v.x,z:v.z,rotation:v.rotation,moving:v.moving};remoteVisitors.set(v.id,remote);}Object.assign(remote,{x:v.x,z:v.z,y:v.y??.12,running:v.running??false,rotation:v.rotation,moving:v.moving});}for(const id of remoteVisitors.keys())if(!ids.has(id))removeVisitor(id);$('#scene').dataset.visitors=String(remoteVisitors.size);}
+function updateRemoteVisitors(dt,now){for(const remote of remoteVisitors.values()){const t=1-Math.exp(-12*dt);remote.avatar.position.y=THREE.MathUtils.lerp(remote.avatar.position.y,remote.y??.12,t);remote.avatar.position.x=THREE.MathUtils.lerp(remote.avatar.position.x,remote.x,t);remote.avatar.position.z=THREE.MathUtils.lerp(remote.avatar.position.z,remote.z,t);const delta=Math.atan2(Math.sin(remote.rotation-remote.avatar.rotation.y),Math.cos(remote.rotation-remote.avatar.rotation.y));remote.avatar.rotation.y+=delta*t;animatePerson(remote.avatar,now,remote.moving,remote.running);}}
 let lastPresenceSuccess=performance.now(),presenceBackoff=250;
 async function syncPresence(){if(presenceStopped||!admitted)return;let delay=document.hidden?1000:200;try{
- const body=visitorSession?{action:'update',id:visitorSession.id,token:visitorSession.token,x:player.position.x,z:player.position.z,rotation:player.rotation.y,moving:playerMoving}:{action:'join',name:visitorName};
+ const body=visitorSession?{action:'update',id:visitorSession.id,token:visitorSession.token,x:player.position.x,z:player.position.z,rotation:player.rotation.y,moving:playerMoving,y:player.position.y,running:playerRunning}:{action:'join',name:visitorName};
  const res=await cloudPresence.fetch('/api/visitors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(4500)});
  if(res.status===401){visitorSession=null;delay=200;}else{if(!res.ok)throw Error();const data=await res.json();if(!visitorSession){visitorSession={id:data.id,token:data.token};if(!hasJoined&&data.spawn){player.position.x=data.spawn.x;player.position.z=data.spawn.z;}hasJoined=true;}receiveVisitors(data.visitors);lastPresenceSuccess=performance.now();presenceBackoff=250;}
  }catch{presenceBackoff=Math.min(presenceBackoff*2,5000);delay=presenceBackoff;if(performance.now()-lastPresenceSuccess>8000)receiveVisitors([]);}
@@ -401,3 +412,32 @@ $('#entry-form').addEventListener('submit',async e=>{
  }catch(error){$('#entry-error').textContent=error.name==='TimeoutError'?'연결이 지연되고 있어요. 잠시 후 다시 시도해주세요.':error.message;}
  finally{joining=false;updateEntryButton();$('#enter-gallery').textContent='입장하기';}
 });
+
+// Chat is session-only; use text nodes so visitor messages cannot create HTML.
+function toggleChat(open){
+ $('#chat-panel').hidden=!open;$('#chat-toggle').setAttribute('aria-expanded',String(open));
+ keys.clear();resetStick();
+ if(open){$('#chat-toggle').textContent='채팅';$('#chat-input').focus();}else $('#chat-input').blur();
+}
+function receiveChat(message){
+ const row=document.createElement('p'),name=document.createElement('strong'),text=document.createElement('span');
+ name.textContent=message.name+' ';text.textContent=message.text;row.append(name,text);$('#chat-log').append(row);
+ while($('#chat-log').children.length>60)$('#chat-log').firstElementChild.remove();
+ $('#chat-log').scrollTop=$('#chat-log').scrollHeight;
+ if($('#chat-panel').hidden)$('#chat-toggle').textContent='채팅 ·';
+}
+$('#chat-toggle').onclick=()=>toggleChat($('#chat-panel').hidden);
+$('#chat-close').onclick=()=>toggleChat(false);
+$('#chat-input').addEventListener('keydown',e=>{e.stopPropagation();if(e.code==='Escape'){e.preventDefault();toggleChat(false);}});
+$('#chat-input').addEventListener('focus',()=>{keys.clear();resetStick();});
+$('#chat-input').addEventListener('input',()=>$('#chat-send').disabled=!$('#chat-input').value.trim());
+$('#chat-form').addEventListener('submit',async e=>{
+ e.preventDefault();const input=$('#chat-input'),text=input.value.trim();if(!text||$('#chat-send').disabled)return;
+ $('#chat-send').disabled=true;$('#chat-error').textContent='';
+ try{const res=await cloudPresence.fetch('/api/visitors',{body:JSON.stringify({action:'chat',text})});const data=await res.json();if(!res.ok)throw Error(data.error||'연결 중이에요. 잠시 후 다시 보내주세요.');if(input.value.trim()===text)input.value='';}
+ catch(error){$('#chat-error').textContent=error.message;}
+ finally{$('#chat-send').disabled=!input.value.trim();}
+});
+$('#run-button').onclick=()=>{touchRunning=!touchRunning;$('#run-button').setAttribute('aria-pressed',String(touchRunning));};
+$('#jump-button').addEventListener('pointerdown',e=>{e.preventDefault();jump();});
+addEventListener('blur',()=>{touchRunning=false;$('#run-button').setAttribute('aria-pressed','false');});

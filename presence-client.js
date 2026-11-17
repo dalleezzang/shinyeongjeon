@@ -1,4 +1,4 @@
-export function createCloudPresence(endpoint,onVisitors){
+export function createCloudPresence(endpoint,onVisitors,onChat=()=>{}){
  let socket=null,opening=null,sequence=0,lastState='',visitors=[],lastPong=Date.now();const pending=new Map();
  const response=(status,data)=>({ok:status>=200&&status<300,status,json:async()=>data});
  function close(){socket?.close();socket=null;lastState='';}
@@ -10,6 +10,7 @@ export function createCloudPresence(endpoint,onVisitors){
    ws.onopen=()=>{clearTimeout(timer);lastPong=Date.now();resolve();};
    ws.onmessage=e=>{
     if(e.data==='pong'){lastPong=Date.now();return;}const message=JSON.parse(e.data);
+    if(message.chat)onChat(message.chat);
     if(message.visitors){visitors=message.visitors;onVisitors(visitors);}
     const task=pending.get(message.rid);if(task){pending.delete(message.rid);clearTimeout(task.timer);if(message.data.visitors)visitors=message.data.visitors;task.resolve(response(message.status,message.data));}
    };
@@ -22,7 +23,7 @@ export function createCloudPresence(endpoint,onVisitors){
   const body=JSON.parse(options.body);
   if(body.action!=='join'&&socket?.readyState!==WebSocket.OPEN)return response(401,{});
   if(body.action==='join'){await connect();lastState='';}
-  const state=JSON.stringify([body.x,body.z,body.rotation,body.moving]);
+  const state=JSON.stringify([body.x,body.z,body.rotation,body.moving,body.y,body.running]);
   if(body.action==='update'&&state===lastState)return response(200,{visitors});
   const rid=++sequence;
   const result=await new Promise((resolve,reject)=>{const timer=setTimeout(()=>{pending.delete(rid);close();reject(Error('연결이 지연되고 있어요.'));},4500);pending.set(rid,{resolve,reject,timer});socket.send(JSON.stringify({...body,rid}));});

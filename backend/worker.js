@@ -17,7 +17,7 @@ export class Gallery extends DurableObject {
   this.ctx.acceptWebSocket(socket);socket.serializeAttachment(null);this.sessions.set(socket,null);
   return new Response(null,{status:101,webSocket:client});
  }
- visitors(socket){return [...this.sessions].filter(([ws,v])=>ws!==socket&&v).map(([,v])=>{const {id,name,color,x,z,rotation,moving}=v;return {id,name,color,x,z,rotation,moving};});}
+ visitors(socket){return [...this.sessions].filter(([ws,v])=>ws!==socket&&v).map(([,v])=>{const {id,name,color,x,z,rotation,moving,y=.12,running=false}=v;return {id,name,color,x,z,rotation,moving,y,running};});}
  reply(ws,rid,status,data){ws.send(JSON.stringify({rid,status,data}));}
  broadcast(){for(const [ws,v] of this.sessions)if(v){try{ws.send(JSON.stringify({visitors:this.visitors(ws)}));}catch{this.sessions.delete(ws);}}}
  webSocketMessage(ws,raw){
@@ -34,9 +34,18 @@ export class Gallery extends DurableObject {
    this.sessions.set(ws,v);ws.serializeAttachment(v);this.reply(ws,rid,200,{...v,spawn:{x:v.x,z:v.z},visitors:this.visitors(ws)});this.broadcast();return;
   }
   if(!v){this.reply(ws,rid,401,{});return;}
+  if(body.action==='chat'){
+   const text=typeof body.text==='string'?body.text.trim():'';
+   if(!text||Array.from(text).length>200||/[\u0000-\u001f\u007f]/.test(text)){this.reply(ws,rid,400,{error:'메시지는 1~200자로 입력해주세요.'});return;}
+   if(Date.now()-(v.lastChat||0)<1000){this.reply(ws,rid,429,{error:'잠시 후 다시 보내주세요.'});return;}
+   v.lastChat=Date.now();ws.serializeAttachment(v);
+   const chat={id:crypto.randomUUID(),name:v.name,text};
+   for(const [peer,user] of this.sessions)if(user){try{peer.send(JSON.stringify({chat}));}catch{}}
+   this.reply(ws,rid,200,{});return;
+  }
   if(body.action==='leave'){this.sessions.delete(ws);ws.serializeAttachment(null);this.reply(ws,rid,200,{});ws.close(1000,'Leaving');this.broadcast();return;}
-  if(body.action!=='update'||![body.x,body.z,body.rotation].every(Number.isFinite)||typeof body.moving!=='boolean'||!((Math.abs(body.x)<=8.04&&body.z>=-6.04&&body.z<=6.15)||(Math.abs(body.x)<=2.67&&body.z>=5.9&&body.z<=10.15))){this.reply(ws,rid,400,{error:'Invalid position'});return;}
-  Object.assign(v,{x:body.x,z:body.z,rotation:body.rotation,moving:body.moving});ws.serializeAttachment(v);this.reply(ws,rid,200,{visitors:this.visitors(ws)});this.broadcast();
+  if((body.y!==undefined&&(!Number.isFinite(body.y)||body.y<.12||body.y>1.5))||(body.running!==undefined&&typeof body.running!=='boolean')||body.action!=='update'||![body.x,body.z,body.rotation].every(Number.isFinite)||typeof body.moving!=='boolean'||!((Math.abs(body.x)<=8.04&&body.z>=-6.04&&body.z<=6.15)||(Math.abs(body.x)<=2.67&&body.z>=5.9&&body.z<=10.15))){this.reply(ws,rid,400,{error:'Invalid position'});return;}
+  Object.assign(v,{x:body.x,z:body.z,rotation:body.rotation,moving:body.moving,y:body.y??.12,running:body.running??false});ws.serializeAttachment(v);this.reply(ws,rid,200,{visitors:this.visitors(ws)});this.broadcast();
  }
  webSocketClose(ws){this.sessions.delete(ws);this.broadcast();}
  webSocketError(ws){this.sessions.delete(ws);try{ws.close(1011,'Connection error');}catch{}this.broadcast();}

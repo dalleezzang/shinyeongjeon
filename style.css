@@ -22,7 +22,15 @@
 #motion-menu{top:58px;bottom:auto;right:0}
 #chat-panel{top:calc(max(20px,env(safe-area-inset-top)) + 58px);bottom:auto;right:max(20px,env(safe-area-inset-right));max-height:calc(100dvh - 100px);overflow:auto}
 #nearby{top:calc(max(20px,env(safe-area-inset-top)) + 64px);bottom:auto;right:max(20px,env(safe-area-inset-right));left:auto;max-height:calc(100dvh - 112px);overflow:auto}
-@media(pointer:fine) and (min-width:701px){body:has(#chat-panel:not([hidden])) #nearby,body:has(#motion-menu:not([hidden])) #nearby{visibility:hidden}}
+@media(pointer:fine) and (min-width:701px){
+ #visitor-tools{top:auto;bottom:max(22px,env(safe-area-inset-bottom))}
+ #motion-menu{top:auto;bottom:0;right:calc(100% + 12px)}
+ #chat-panel{top:auto;bottom:calc(max(22px,env(safe-area-inset-bottom)) + 58px);max-height:calc(50dvh - 90px);display:flex;flex-direction:column;overflow:hidden}
+ #chat-panel[hidden]{display:none}
+ #chat-panel header,#chat-form,#chat-error{flex-shrink:0}
+ #chat-log{min-height:0;flex:0 1 220px}
+ #nearby{top:max(20px,env(safe-area-inset-top));max-height:calc(50dvh - 32px)}
+}
 @media(pointer:coarse),(max-width:700px){
  #visitor-tools{top:max(16px,env(safe-area-inset-top));right:max(16px,env(safe-area-inset-right))}
  #chat-panel{top:calc(max(16px,env(safe-area-inset-top)) + 58px);right:max(16px,env(safe-area-inset-right))}
